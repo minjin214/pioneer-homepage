@@ -1,36 +1,46 @@
 package com.pioneer.pioneer_app.attendance;
 
-import com.pioneer.pioneer_app.users.User;
-import jakarta.persistence.*; import lombok.*;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import java.time.LocalDate;
 
+/**
+ * 출석 기록. 계정 대신 학번 + 이름으로 누구인지 기록한다.
+ * 같은 학번은 날짜마다 한 건만 가진다 (다시 등록하면 수정됨).
+ */
 @Entity
-@Table(name="attendance")
+@Table(name = "attendance",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"student_number", "date"}))
 @Getter @Setter @NoArgsConstructor
 public class Attendance {
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long attendanceId;
 
-    // User와 연결 (FK)
-    @ManyToOne(fetch = FetchType.LAZY)    // 출석 연결 불가 해결 : getUser().getName()으로 역추적도 가능
-    @JoinColumn(name = "user_id")
-    private User user;
+    @Column(name = "student_number", nullable = false)
+    private String studentNumber;
 
+    @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false)
     private LocalDate date;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Status status;
 
-    private String reason;
+    private String reason; // 불참 사유
 
-    // 출석 상태 참석/불참/미정 중에 하나만 선택 가능하도록 enum 설정
     public enum Status {
         ATTEND("참석"),
-        ABSENT("불참"),
-        UNKNOWN("미정");
+        ABSENT("불참");
 
         private final String display;
         Status(String display) { this.display = display; }
-        public String getDisplay() {return display; }
+        public String getDisplay() { return display; }
     }
 }

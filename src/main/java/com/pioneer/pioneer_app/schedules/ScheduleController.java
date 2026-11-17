@@ -1,12 +1,11 @@
 package com.pioneer.pioneer_app.schedules;
 
 import com.pioneer.pioneer_app.common.ApiResponse;
-import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/schedules")
@@ -18,31 +17,23 @@ public class ScheduleController {
         this.service = service;
     }
 
-    // 일정 목록 조회 -> 중요 일정이면 참석자 포함
+    // 일정 목록 (date가 있으면 그 날짜만)
     @GetMapping
-    public ApiResponse<List<ScheduleResponse>> list() {
-        return ApiResponse.success("일정 목록 조회 성공", service.findAll());
+    public ApiResponse<List<ScheduleResponse>> list(@RequestParam(required = false) LocalDate date) {
+        var items = (date != null) ? service.findByDate(date) : service.findAll();
+        return ApiResponse.success("일정 조회 성공", items);
     }
 
-    // 일정 등록 (관리자만)
+    // 일정 등록 (부원 누구나)
     @PostMapping
-    public ApiResponse<Map<String, Object>> create(@RequestBody Schedule req, HttpSession session) {
-        Object role = session.getAttribute("LOGIN_USER_ROLE");
-        Long userId = (Long) session.getAttribute("LOGIN_USER_ID");
-
-        if (role == null || !"admin".equals(role.toString())) {
-            throw new RuntimeException("관리자만 등록 가능합니다.");
-        }
-
-        Schedule s = service.create(req, userId);
-        return ApiResponse.success("일정 등록 성공", Map.of("scheduleId", s.getScheduleId()));
+    public ApiResponse<ScheduleResponse> create(@Valid @RequestBody ScheduleRequest req) {
+        return ApiResponse.success("일정 등록 성공", service.create(req));
     }
 
     // 일정 수정
-    @PatchMapping("/{id}")
-    public ApiResponse<Void> update(@PathVariable Long id, @RequestBody Schedule req) {
-        service.update(id, req);
-        return ApiResponse.success("일정 수정 성공");
+    @PutMapping("/{id}")
+    public ApiResponse<ScheduleResponse> update(@PathVariable Long id, @Valid @RequestBody ScheduleRequest req) {
+        return ApiResponse.success("일정 수정 성공", service.update(id, req));
     }
 
     // 일정 삭제
@@ -51,13 +42,4 @@ public class ScheduleController {
         service.delete(id);
         return ApiResponse.success("일정 삭제 성공");
     }
-
-    // 날짜별 일정 조회
-    @GetMapping("/date/{date}")
-    public ApiResponse<List<ScheduleResponse>> byDate(@PathVariable String date) {
-        LocalDate target = LocalDate.parse(date);
-        List<ScheduleResponse> result = service.findByDate(target);
-        return ApiResponse.success("날짜별 일정 조회 성공", result);
-    }
-
 }

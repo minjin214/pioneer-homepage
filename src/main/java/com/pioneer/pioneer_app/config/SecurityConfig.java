@@ -47,11 +47,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 프리플라이트(OPTIONS) 통과
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // 로그인/회원가입 등 공개 엔드포인트
-                        .requestMatchers("/api/auth/**").permitAll()
-                        // 그 외는 인증 필요
-                        .anyRequest().permitAll()       // 개발 완료 후 삭제
-//                        .anyRequest().authenticated()    // 개발 완료 후 반드시 이걸로 교체, 바로 위 코드 삭제
+                        // 개인 계정이 없으므로 Spring Security 인증은 쓰지 않음.
+                        // 접근 제어는 입장 비밀번호 세션을 확인하는 AccessInterceptor가 담당.
+                        .anyRequest().permitAll()
                 );
 
         // 세션 기반(서버 세션/쿠키) 사용 시 별도 세션정책 설정 불필요

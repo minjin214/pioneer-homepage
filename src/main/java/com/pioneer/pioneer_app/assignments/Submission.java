@@ -1,34 +1,42 @@
 package com.pioneer.pioneer_app.assignments;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.pioneer.pioneer_app.users.User;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import java.time.LocalDateTime;
 
+/**
+ * 과제 제출. 학번 + 이름으로 누가 냈는지 기록하고,
+ * 제출물은 링크(git 등)와 첨부 파일 중 하나 이상을 가진다.
+ * 같은 과제에 같은 학번이 다시 제출하면 기존 제출을 덮어쓴다.
+ */
 @Entity
-@Table(name = "submissions")
+@Table(name = "submissions",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"assignment_id", "student_number"}))
 @Getter @Setter @NoArgsConstructor
 public class Submission {
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long submissionId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "assignment_id")
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Assignment assignment;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})  // 엔티티 양방향 관계 걸려있으면 json변환을 못하는 문제 생김 : 이걸 해결하는 방법
-        // Submission & User 상호 참조의 무한 루프에 빠졌던 것
-        // 특정 필드를 json 변환 과정에서 직렬화 대상에서 제외 : jackson이 순환 참조를 끊어줌
-    private User user;
+    @Column(name = "student_number", nullable = false)
+    private String studentNumber;
 
+    @Column(nullable = false)
+    private String name;
+
+    @Column(length = 1000)
     private String link;
-    private String status; // ex) "제출", "채점 완료"
+
+    private String originalFileName; // 사용자가 올린 파일 이름 (다운로드 시 표시)
+
+    private String storedFileName;   // 서버에 저장된 파일 이름 (UUID 기반)
 
     private LocalDateTime submittedAt = LocalDateTime.now();
-
-    private Integer score; // 채점 점수
 }

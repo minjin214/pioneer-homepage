@@ -1,32 +1,33 @@
 package com.pioneer.pioneer_app.schedules;
 
-import com.pioneer.pioneer_app.users.User;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDate;
 
 @Entity
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor @Builder
-@ToString(exclude = "createdBy")  // User, Schedule간 순환 참조 방지
+@Getter @Setter @NoArgsConstructor
 public class Schedule {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long scheduleId;   // 일정 id
+    private Long scheduleId;
+
+    @Column(nullable = false)
     private String title;
+
+    @Column(nullable = false)
     private LocalDate date;
-    private String location;
+
+    private String location;     // 장소 이름 (예: 공학관 302호, 디스코드)
+
+    @Column(length = 1000)
+    private String locationUrl;  // 장소 링크 (지도, 줌/디스코드 초대 링크 등)
+
+    @Column(length = 2000)
     private String description;
 
-    @Builder.Default   // default 안쓰면 인식 못함
-    private boolean important = false;     // 기본값 : 안중요
-
-    // 작성자 추적
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by") // db 칼럼명은 created_by
-    private User createdBy;
+    private boolean important = false;
 }
-
-
