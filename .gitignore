@@ -8,3 +8,6 @@
 # 로컬 환경 변수
 .env
 .env.local
+
+# 에이전트 파일
+claude.md
