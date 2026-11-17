@@ -1,0 +1,84 @@
+.assignment .card + .card {
+  margin-top: 0;
+}
+
+.assignment-desc {
+  margin-top: 12px;
+  white-space: pre-wrap;
+  color: var(--ink-2);
+}
+
+.assignment h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+
+.submissions {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.submissions ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.submissions li {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.sub-who {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.sub-what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .submissions li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .sub-what {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+.submit-form {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(239, 141, 50, 0.5);
+  background: #fffaf5;
+}
+
+.submit-form h3 {
+  margin-bottom: 0;
+  color: var(--brand-strong);
+}
+
+.submit-form input[type="file"] {
+  padding: 6px 8px;
+}

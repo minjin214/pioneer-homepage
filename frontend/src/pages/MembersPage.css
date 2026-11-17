@@ -1,0 +1,48 @@
+/* 기존 카드 그리드 UI를 새 디자인 토큰으로 정리 */
+.members-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 16px;
+}
+
+.member-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px 14px 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.member-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(22, 23, 27, 0.08);
+}
+
+.member-card img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid var(--brand-soft);
+  margin-bottom: 8px;
+}
+
+.member-card h4 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.member-card p {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.member-card .badge {
+  margin-top: 8px;
+}
