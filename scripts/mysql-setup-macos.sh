@@ -1,14 +1,14 @@
 #!/bin/sh
 # MySQL(launchd 관리)을 잠깐 내렸다가 init-file로 한 번 띄워
 # pioneer DB/계정을 만든 뒤, 다시 원래 launchd 방식으로 되돌린다.
-# root 비밀번호는 바꾸지 않는다. 계정 비밀번호는 백엔드 설정 파일에서 읽는다.
+# root 비밀번호는 바꾸지 않는다. 계정 비밀번호는 backend/local.properties의 DB_PASSWORD에서 읽는다.
 # 사용법: sudo sh scripts/mysql-setup-macos.sh   (저장소 루트에서 실행, macOS + MySQL 공식 설치판 기준)
 set -e
 PLIST=/Library/LaunchDaemons/com.oracle.oss.mysql.mysqld.plist
 INIT=/usr/local/mysql/data/pioneer-init.sql
-PROPS="$(cd "$(dirname "$0")/.." && pwd)/backend/src/main/resources/application.properties"
-DBPW="$(grep '^spring.datasource.password=' "$PROPS" | cut -d= -f2-)"
-[ -n "$DBPW" ] || { echo "application.properties에서 DB 비밀번호를 찾지 못함"; exit 1; }
+PROPS="$(cd "$(dirname "$0")/.." && pwd)/backend/local.properties"
+DBPW="$(grep '^DB_PASSWORD=' "$PROPS" | cut -d= -f2-)"
+[ -n "$DBPW" ] || { echo "backend/local.properties에 DB_PASSWORD가 없음 (local.properties.example 참고)"; exit 1; }
 
 wait_no_mysqld() {
   i=0

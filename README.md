@@ -21,19 +21,33 @@ scripts/    로컬 개발 보조 스크립트
 
 ## 로컬 실행
 
-### 1. DB 준비 (MySQL 8)
-`backend/src/main/resources/application.properties`의 접속 정보대로 DB와 계정을 만들어요.
+### 1. 비밀 설정 파일 만들기
+비밀번호는 저장소에 올리지 않아요. 예시 파일을 복사해서 직접 정한 값을 넣어요.
+
+```bash
+cp backend/local.properties.example backend/local.properties
+```
+
+| 키 | 용도 |
+|---|---|
+| `DB_PASSWORD` | MySQL `pioneer` 계정 비밀번호 |
+| `CLUB_PASSWORD` | 사이트 입장 비밀번호 |
+
+`backend/local.properties`는 `.gitignore`에 들어 있어요. 배포할 때는 같은 이름의 환경변수로 넣으면 돼요.
+값이 없으면 서버가 시작되지 않아요.
+
+### 2. DB 준비 (MySQL 8)
 
 ```sql
 CREATE DATABASE pioneer CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'pioneer'@'localhost' IDENTIFIED BY '<application.properties의 비밀번호>';
+CREATE USER 'pioneer'@'localhost' IDENTIFIED BY '<DB_PASSWORD 값>';
 GRANT ALL PRIVILEGES ON pioneer.* TO 'pioneer'@'localhost';
 ```
 
 macOS에서 MySQL 공식 설치판을 쓰고 root 비밀번호를 모르면 `sudo sh scripts/mysql-setup-macos.sh`로 대신할 수 있어요.
 테이블은 서버가 처음 뜰 때 자동으로 만들어져요 (`ddl-auto=update`).
 
-### 2. 백엔드
+### 3. 백엔드
 
 ```bash
 cd backend
@@ -42,7 +56,7 @@ cd backend
 
 - 동작 확인: http://localhost:8080/api/ping → `pong`
 
-### 3. 프론트엔드
+### 4. 프론트엔드
 
 ```bash
 cd frontend
@@ -90,5 +104,5 @@ http://localhost:3000 에서 입장 비밀번호를 입력하면 돼요.
 ## 남은 과제
 
 - [ ] 배포 (서버, MySQL, 실제 입장 비밀번호 설정)
-- [ ] DB 비밀번호를 설정 파일 대신 환경 변수로 옮기기
+- [x] 비밀번호를 저장소 밖(local.properties·환경변수)으로 분리
 - [ ] 일정 수정 화면 (API는 있음)

@@ -21,3 +21,6 @@ replay_pid*
 
 # 과제 첨부 파일 (로컬 저장소)
 /uploads/
+
+# 로컬 비밀 설정
+/local.properties
