@@ -1,0 +1,49 @@
+.entry {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(239, 141, 50, 0.16), transparent 45%),
+    radial-gradient(circle at 85% 85%, rgba(22, 23, 27, 0.08), transparent 40%),
+    var(--bg);
+}
+
+.entry-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(22, 23, 27, 0.08);
+  padding: 36px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: center;
+}
+
+.entry-logo {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  margin: 0 auto 4px;
+  border-radius: 24px;
+}
+
+.entry-card h1 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.entry-card p {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.entry-input {
+  text-align: center;
+  font-size: 16px;
+  padding: 12px;
+}

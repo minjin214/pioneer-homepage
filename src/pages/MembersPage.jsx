@@ -1,151 +1,151 @@
-import React, { useState, useEffect } from 'react';
-import './MembersPage.css';
-import { useNavigate } from 'react-router-dom';
-import defaultImg from '../assets/pioneer-intro.png';
+import React, { useCallback, useEffect, useState } from "react";
+import API, { errorMessage } from "../api";
+import defaultImg from "../assets/pioneer-intro.png";
+import "./MembersPage.css";
+
+const EMPTY_MEMBER = { name: "", studentNumber: "", department: "", grade: "", position: "UNDERGRADUATE" };
 
 function MembersPage() {
-    const navigate = useNavigate();
-    const [members, setMembers] = useState([]);
-    const [showPopup, setShowPopup] = useState(false);
-    const [newMember, setNewMember] = useState({
-        name: '',
-        studentNumber: '',
-        department: '',
-        role: 'USER'
-    });
-    const [selectedIndex, setSelectedIndex] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [query, setQuery] = useState("");
+  const [showPopup, setShowPopup] = useState(false);
+  const [form, setForm] = useState(EMPTY_MEMBER);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-    // 🔹 백엔드에서 사용자 목록 불러오기
-    useEffect(() => {
-        const fetchMembers = async () => {
-            try {
-                const res = await fetch("http://localhost:8080/api/members");
-                const data = await res.json();
-                if (Array.isArray(data.items)) {
-                    setMembers(data.items); // items 배열 안에 DTO 목록
-                } else {
-                    setMembers([]);
-                    console.error("백엔드 응답이 배열이 아님:", data);
-                }
-            } catch (err) {
-                console.error("멤버 불러오기 실패:", err);
-            }
-        };
-        fetchMembers();
-    }, []);
+  const load = useCallback(async () => {
+    try {
+      const res = await API.get("/api/members");
+      setMembers(res.data.data || []);
+    } catch (err) {
+      console.error("부원 목록 불러오기 실패:", err);
+    }
+  }, []);
 
-    const addMember = () => setShowPopup(true);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-    const handleInputChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        setNewMember({
-            ...newMember,
-            [name]: type === "checkbox" ? (checked ? "ADMIN" : "USER") : value
-        });
-    };
+  const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
-    const saveMember = async () => {
-        if (!newMember.name || !newMember.studentNumber || !newMember.department) {
-            alert("모든 항목을 입력하세요.");
-            return;
-        }
+  const close = () => {
+    setShowPopup(false);
+    setForm(EMPTY_MEMBER);
+    setError("");
+  };
 
-        try {
-            const res = await fetch("http://localhost:8080/api/auth/signup", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(newMember)
-            });
-            if (!res.ok) throw new Error("회원가입 실패");
+  const save = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.studentNumber.trim() || !form.department.trim()) {
+      return setError("이름, 학번, 학과를 입력하세요.");
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await API.post("/api/members", { ...form, grade: form.grade ? Number(form.grade) : null });
+      await load();
+      close();
+    } catch (err) {
+      setError(errorMessage(err, "부원을 추가하지 못했어요."));
+    } finally {
+      setSaving(false);
+    }
+  };
 
-            const savedUser = await res.json();
+  const q = query.trim();
+  const shown = q
+    ? members.filter((m) => m.name.includes(q) || m.studentNumber.includes(q) || (m.department || "").includes(q))
+    : members;
 
-            // DTO 형식에 맞춰 members 배열에 추가
-            const memberDto = {
-                name: savedUser.name,
-                studentNumber: savedUser.studentNumber,
-                department: savedUser.department,
-                position: savedUser.role === "ADMIN" ? "관리자" : "사용자"
-            };
-            setMembers([...members, memberDto]);
-            setNewMember({ name: '', studentNumber: '', department: '', role: 'USER' });
-            setShowPopup(false);
-        } catch (err) {
-            console.error(err);
-            alert("회원가입 실패");
-        }
-    };
-
-    const removeSelectedMember = async () => {
-        if (selectedIndex === null) return;
-
-        const target = members[selectedIndex];
-        if (!window.confirm(`${target.name}을(를) 삭제하시겠습니까?`)) return;
-
-        try {
-            // 백엔드에 삭제 요청
-            await fetch(`http://localhost:8080/api/users/${target.id}`, { method: "DELETE" });
-            const updated = members.filter((_, i) => i !== selectedIndex);
-            setMembers(updated);
-            setSelectedIndex(null);
-        } catch (err) {
-            console.error(err);
-            alert("삭제 실패");
-        }
-    };
-
-    return (
-        <div className="members-container">
-            <button className="back-btn" onClick={() => navigate('/main')}>⬅ 메인으로</button>
-
-            <h2 className="page-title">👥 사용자 목록</h2>
-
-            <div className="action-buttons">
-                <button onClick={addMember}>추가</button>
-                <button onClick={removeSelectedMember} disabled={selectedIndex === null}>삭제</button>
-            </div>
-
-            <div className="members-list">
-                {members.map((m, i) => (
-                    <div
-                        className={`member-card ${selectedIndex === i ? 'selected-member' : ''}`}
-                        key={i}
-                        onClick={() => setSelectedIndex(i)}
-                    >
-                        <img src={defaultImg} alt={m.name} />
-                        <h4>{m.name}</h4>
-                        <p>{m.studentNumber}</p>
-                        <p>{m.department}</p>
-                        <p>{m.position}</p>
-                    </div>
-                ))}
-            </div>
-
-            {showPopup && (
-                <div className="popup">
-                    <h3>새 멤버 추가</h3>
-                    <input name="name" placeholder="이름" value={newMember.name} onChange={handleInputChange} />
-                    <input name="studentNumber" placeholder="학번" value={newMember.studentNumber} onChange={handleInputChange} />
-                    <input name="department" placeholder="학과" value={newMember.department} onChange={handleInputChange} />
-                    
-                    <label className="checkbox-label">
-                        <input
-                            type="checkbox"
-                            name="role"
-                            checked={newMember.role === "ADMIN"}
-                            onChange={handleInputChange}
-                        />
-                        관리자
-                    </label>
-
-                    <div className="popup-buttons">
-                        <button onClick={saveMember}>저장</button>
-                        <button onClick={() => setShowPopup(false)}>취소</button>
-                    </div>
-                </div>
-            )}
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>부원</h1>
+          <p>PIONEER 부원 {members.length}명</p>
         </div>
-    );
+        <div className="row">
+          <input
+            className="input"
+            style={{ width: 200 }}
+            placeholder="이름·학번·학과 검색"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button className="btn btn-primary" onClick={() => setShowPopup(true)}>
+            + 부원 추가
+          </button>
+        </div>
+      </div>
+
+      {shown.length === 0 ? (
+        <div className="empty">{members.length === 0 ? "아직 등록된 부원이 없어요." : "검색 결과가 없어요."}</div>
+      ) : (
+        <div className="members-list">
+          {shown.map((m) => (
+            <div className="member-card" key={m.memberId}>
+              <img src={defaultImg} alt="" />
+              <h4>{m.name}</h4>
+              <p>{m.studentNumber}</p>
+              <p>{m.department}</p>
+              <span className="badge">
+                {m.position}
+                {m.grade ? ` · ${m.grade}학년` : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showPopup && (
+        <div className="modal-backdrop" onClick={close}>
+          <form className="modal stack" onClick={(e) => e.stopPropagation()} onSubmit={save}>
+            <h2>새 부원 추가</h2>
+            <div className="row">
+              <label className="field grow">
+                <span>이름</span>
+                <input className="input" autoFocus value={form.name} onChange={update("name")} />
+              </label>
+              <label className="field grow">
+                <span>학번</span>
+                <input className="input" inputMode="numeric" value={form.studentNumber} onChange={update("studentNumber")} />
+              </label>
+            </div>
+            <label className="field">
+              <span>학과</span>
+              <input className="input" value={form.department} onChange={update("department")} />
+            </label>
+            <div className="row">
+              <label className="field grow">
+                <span>구분</span>
+                <select className="select" value={form.position} onChange={update("position")}>
+                  <option value="UNDERGRADUATE">학부</option>
+                  <option value="MASTER">석박사</option>
+                  <option value="OTHER">기타</option>
+                </select>
+              </label>
+              <label className="field grow">
+                <span>학년 (선택)</span>
+                <select className="select" value={form.grade} onChange={update("grade")}>
+                  <option value="">-</option>
+                  {[1, 2, 3, 4, 5, 6].map((g) => (
+                    <option key={g} value={g}>{g}학년</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {error && <div className="notice notice-error">{error}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={close}>취소</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
+                {saving ? "저장 중..." : "저장"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </>
+  );
 }
 
 export default MembersPage;

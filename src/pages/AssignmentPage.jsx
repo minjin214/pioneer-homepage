@@ -1,309 +1,264 @@
-import React, { useEffect, useState, useCallback } from "react";
-import API from "../api";
-import { useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useState } from "react";
+import API, { errorMessage, fileUrl } from "../api";
+import PersonFields, { loadPerson, savePerson, useMembers } from "../components/PersonFields";
+import { dday, formatDate, formatDateTime } from "../utils/date";
 import "./AssignmentPage.css";
 
+const TYPES = [
+  { value: "", label: "전체" },
+  { value: "STUDY", label: "스터디" },
+  { value: "PROGRAMMING", label: "프로그래밍" },
+  { value: "PROJECT", label: "프로젝트" },
+];
+const EMPTY_ASSIGNMENT = { title: "", description: "", type: "STUDY", deadline: "" };
+const MAX_FILE_MB = 20;
+const isHttpUrl = (v) => /^https?:\/\/.+/i.test(v);
+
 function AssignmentPage() {
-  const navigate = useNavigate();
-
+  const members = useMembers();
+  const [filter, setFilter] = useState("");
   const [assignments, setAssignments] = useState([]);
-  const [submissions, setSubmissions] = useState([]);
-  const [mySubmission, setMySubmission] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState(EMPTY_ASSIGNMENT);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const [filterType, setFilterType] = useState("");
-  const [newAssignment, setNewAssignment] = useState({
-    title: "",
-    description: "",
-    type: "REPORT",
-    dueDate: ""
-  });
-  const [newSubmission, setNewSubmission] = useState({
-    assignmentId: "",
-    userId: "",
-    link: ""
-  });
-
-  // 과제 목록 불러오기
-  const fetchAssignments = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      let url = "/api/assignments";
-      if (filterType) url += `?type=${filterType}`;
-      const res = await API.get(url);
-      setAssignments(res.data.data);
+      const res = await API.get("/api/assignments", { params: filter ? { type: filter } : {} });
+      setAssignments(res.data.data || []);
     } catch (err) {
-      console.error("과제 목록 조회 실패:", err);
+      setError(errorMessage(err, "과제를 불러오지 못했어요."));
     }
-  }, [filterType]);
-
-  // 특정 과제 제출 목록 (관리자)
-  const fetchSubmissions = async (assignmentId) => {
-    try {
-      const res = await API.get(`/api/assignments/${assignmentId}/submissions`);
-      setSubmissions(res.data.data);
-    } catch (err) {
-      console.error("제출 목록 조회 실패:", err);
-    }
-  };
-
-  // 내 제출 조회
-  const fetchMySubmission = async () => {
-    if (!newSubmission.assignmentId || !newSubmission.userId) {
-      alert("assignmentId와 userId를 입력하세요.");
-      return;
-    }
-    try {
-      const res = await API.get(
-        `/api/submissions/mine?assignmentId=${newSubmission.assignmentId}&userId=${newSubmission.userId}`
-      );
-      setMySubmission(res.data.data);
-    } catch (err) {
-      console.error("내 제출 조회 실패:", err);
-      alert("내 제출 없음");
-    }
-  };
-
-  // 과제 등록 (관리자)
-  const createAssignment = async () => {
-    try {
-      await API.post("/api/assignments", newAssignment);
-      alert("과제 등록 완료");
-      setNewAssignment({ title: "", description: "", type: "REPORT", dueDate: "" });
-      fetchAssignments();
-    } catch (err) {
-      console.error("과제 등록 실패:", err);
-    }
-  };
-
-  // 과제 제출
-  const submitAssignment = async () => {
-    try {
-      await API.post("/api/submissions", newSubmission);
-      alert("과제 제출 완료");
-      setNewSubmission({ assignmentId: "", userId: "", link: "" });
-    } catch (err) {
-      console.error("과제 제출 실패:", err);
-    }
-  };
-
-  // 채점 (제출 목록에서 바로)
-  const gradeSubmission = async (submissionId, assignmentId, score) => {
-    if (!score || score < 1 || score > 100) {
-      alert("점수는 1~100 사이여야 합니다.");
-      return;
-    }
-    try {
-      await API.post(`/api/submissions/${submissionId}/grade`, {
-        score: parseInt(score)
-      });
-      alert("채점 완료");
-      fetchSubmissions(assignmentId);
-    } catch (err) {
-      console.error("채점 실패:", err);
-    }
-  };
+  }, [filter]);
 
   useEffect(() => {
-    fetchAssignments();
-  }, [fetchAssignments]);
+    load();
+  }, [load]);
+
+  const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const create = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!form.title.trim()) return setError("과제 제목을 입력하세요.");
+    setSaving(true);
+    try {
+      await API.post("/api/assignments", { ...form, deadline: form.deadline || null });
+      setForm(EMPTY_ASSIGNMENT);
+      setShowCreate(false);
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, "과제를 등록하지 못했어요."));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="assignment-container">
-      <button className="back-btn" onClick={() => navigate("/main")}>
-        ⬅ 메인으로
-      </button>
-
-      <h1 className="assignment-title">과제 관리</h1>
-
-      {/* 과제 목록 필터 */}
-      <div className="assignment-filters">
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-          <option value="">전체</option>
-          <option value="STUDY">스터디</option>
-          <option value="PROGRAMMING">프로그래밍</option>
-          <option value="PROJECT">프로젝트</option>
-        </select>
-        <button onClick={fetchAssignments}>조회</button>
+    <>
+      <div className="page-head">
+        <div>
+          <h1>과제</h1>
+          <p>과제를 올리고, 각 과제 아래에서 바로 제출해요.</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => setShowCreate((v) => !v)}>
+          {showCreate ? "닫기" : "+ 과제 등록"}
+        </button>
       </div>
 
-      {/* 과제 목록 */}
-      <table className="assignment-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>제목</th>
-            <th>타입</th>
-            <th>마감일</th>
-            <th>조회</th>
-          </tr>
-        </thead>
-        <tbody>
+      {showCreate && (
+        <form className="card stack" onSubmit={create} style={{ marginBottom: 20 }}>
+          <div className="card-title" style={{ marginBottom: 0 }}>새 과제</div>
+          <label className="field">
+            <span>제목</span>
+            <input className="input" autoFocus value={form.title} onChange={update("title")} placeholder="예: React 컴포넌트 실습" />
+          </label>
+          <label className="field">
+            <span>설명</span>
+            <textarea className="textarea" value={form.description} onChange={update("description")} placeholder="과제 내용, 제출 방법 등" />
+          </label>
+          <div className="row">
+            <label className="field grow">
+              <span>유형</span>
+              <select className="select" value={form.type} onChange={update("type")}>
+                {TYPES.filter((t) => t.value).map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field grow">
+              <span>마감일 (선택)</span>
+              <input className="input" type="date" value={form.deadline} onChange={update("deadline")} />
+            </label>
+          </div>
+          {error && <div className="notice notice-error">{error}</div>}
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? "등록 중..." : "등록"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        {TYPES.map((t) => (
+          <button key={t.value} className={filter === t.value ? "active" : ""} onClick={() => setFilter(t.value)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {!showCreate && error && <div className="notice notice-error" style={{ marginBottom: 16 }}>{error}</div>}
+
+      {assignments.length === 0 ? (
+        <div className="empty">등록된 과제가 없어요.</div>
+      ) : (
+        <div className="stack" style={{ gap: 16 }}>
           {assignments.map((a) => (
-            <tr key={a.assignmentId}>
-              <td>{a.assignmentId}</td>
-              <td>{a.title}</td>
-              <td>{a.type}</td>
-              <td>{a.deadline}</td>
-              <td>
-                <button onClick={() => fetchSubmissions(a.assignmentId)}>
-                  제출 목록 보기
-                </button>
-              </td>
-            </tr>
+            <AssignmentCard key={a.assignmentId} assignment={a} members={members} onChanged={load} />
           ))}
-        </tbody>
-      </table>
+        </div>
+      )}
+    </>
+  );
+}
 
-      {/* 제출 목록 (관리자) */}
-      {submissions.length > 0 && (
-        <div className="submission-section">
-          <h3>제출 목록</h3>
-          <table className="assignment-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>유저</th>
-                <th>링크</th>
-                <th>점수</th>
-                <th>상태</th>
-                <th>채점</th>
-              </tr>
-            </thead>
-            <tbody>
-              {submissions.map((s) => (
-                <tr key={s.submissionId}>
-                  <td>{s.submissionId}</td>
-                  <td>{s.user?.name}</td>
-                  <td>
-                    <a href={s.link} target="_blank" rel="noreferrer">
-                      {s.link}
+function AssignmentCard({ assignment: a, members, onChanged }) {
+  const [person, setPerson] = useState(loadPerson);
+  const [link, setLink] = useState("");
+  const [file, setFile] = useState(null);
+  const [fileKey, setFileKey] = useState(0); // 제출 후 파일 입력칸 초기화용
+  const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
+  const due = a.deadline ? dday(a.deadline) : null;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!person.studentNumber.trim() || !person.name.trim()) return setError("학번과 이름을 입력하세요.");
+    if (!link.trim() && !file) return setError("제출 링크나 파일 중 하나는 필요해요.");
+    if (link.trim() && !isHttpUrl(link.trim())) return setError("링크는 http:// 또는 https:// 로 시작해야 해요.");
+    if (file && file.size > MAX_FILE_MB * 1024 * 1024) return setError(`파일은 ${MAX_FILE_MB}MB까지 올릴 수 있어요.`);
+
+    const data = new FormData();
+    data.append("studentNumber", person.studentNumber);
+    data.append("name", person.name);
+    if (link.trim()) data.append("link", link.trim());
+    if (file) data.append("file", file);
+
+    setSending(true);
+    try {
+      await API.post(`/api/assignments/${a.assignmentId}/submissions`, data);
+      savePerson(person);
+      setLink("");
+      setFile(null);
+      setFileKey((k) => k + 1);
+      await onChanged();
+    } catch (err) {
+      setError(errorMessage(err, "제출하지 못했어요."));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const cancelSubmission = async (s) => {
+    if (!window.confirm(`${s.name}(${s.studentNumber})의 제출을 취소할까요?`)) return;
+    try {
+      await API.delete(`/api/submissions/${s.submissionId}`);
+      await onChanged();
+    } catch (err) {
+      alert(errorMessage(err, "취소하지 못했어요."));
+    }
+  };
+
+  const removeAssignment = async () => {
+    const msg = `'${a.title}' 과제를 삭제할까요?\n제출된 ${a.submissions.length}건과 첨부 파일도 함께 삭제돼요.`;
+    if (!window.confirm(msg)) return;
+    try {
+      await API.delete(`/api/assignments/${a.assignmentId}`);
+      await onChanged();
+    } catch (err) {
+      alert(errorMessage(err, "삭제하지 못했어요."));
+    }
+  };
+
+  return (
+    <article className="card assignment">
+      <div className="item-head">
+        <div className="item-title" style={{ fontSize: 17 }}>
+          {a.title}
+          <span className="badge">{a.typeDisplay}</span>
+          {due && <span className={`badge ${due.over ? "" : "badge-brand"}`}>{due.label}</span>}
+        </div>
+        <button className="btn btn-danger-text btn-sm" onClick={removeAssignment}>과제 삭제</button>
+      </div>
+      <div className="meta">
+        {a.deadline ? <span>마감 {formatDate(a.deadline)}</span> : <span>마감일 없음</span>}
+        <span>제출 {a.submissions.length}명</span>
+      </div>
+      {a.description && <p className="assignment-desc">{a.description}</p>}
+
+      <div className="submissions">
+        <h3>제출 현황</h3>
+        {a.submissions.length === 0 ? (
+          <p className="small muted">아직 제출한 사람이 없어요.</p>
+        ) : (
+          <ul>
+            {a.submissions.map((s) => (
+              <li key={s.submissionId}>
+                <div className="sub-who">
+                  <strong>{s.name}</strong>
+                  <span className="muted small">{s.studentNumber}</span>
+                </div>
+                <div className="sub-what">
+                  {s.link && (
+                    <a className="link" href={s.link} target="_blank" rel="noopener noreferrer">
+                      {s.link.replace(/^https?:\/\//, "")} ↗
                     </a>
-                  </td>
-                  <td>{s.score ?? "-"}</td>
-                  <td>{s.status}</td>
-                  <td>
-                    <input
-                      type="number"
-                      min="1"
-                      max="100"
-                      placeholder="점수"
-                      style={{ width: "60px", marginRight: "5px" }}
-                      value={s.tempScore ?? ""}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setSubmissions((prev) =>
-                          prev.map((sub) =>
-                            sub.submissionId === s.submissionId
-                              ? { ...sub, tempScore: value }
-                              : sub
-                          )
-                        );
-                      }}
-                    />
-                    <button
-                      onClick={() =>
-                        gradeSubmission(
-                          s.submissionId,
-                          s.assignment.assignmentId,
-                          s.tempScore
-                        )
-                      }
-                    >
-                      채점
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  )}
+                  {s.fileName && (
+                    <a className="link" href={fileUrl(s.submissionId)}>
+                      📎 {s.fileName}
+                    </a>
+                  )}
+                </div>
+                <span className="muted small">{formatDateTime(s.submittedAt)}</span>
+                <button className="btn btn-danger-text btn-sm" onClick={() => cancelSubmission(s)}>취소</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
-      {/* 과제 제출 */}
-      <div className="assignment-submit">
+      <form className="submit-form stack" onSubmit={submit}>
         <h3>과제 제출</h3>
-        <input
-          type="text"
-          placeholder="과제 ID"
-          value={newSubmission.assignmentId}
-          onChange={(e) =>
-            setNewSubmission({ ...newSubmission, assignmentId: e.target.value })
-          }
-        />
-        <input
-          type="text"
-          placeholder="유저 ID"
-          value={newSubmission.userId}
-          onChange={(e) =>
-            setNewSubmission({ ...newSubmission, userId: e.target.value })
-          }
-        />
-        <input
-          type="text"
-          placeholder="제출 링크"
-          value={newSubmission.link}
-          onChange={(e) =>
-            setNewSubmission({ ...newSubmission, link: e.target.value })
-          }
-        />
-        <button onClick={submitAssignment}>제출</button>
-        <button onClick={fetchMySubmission}>내 제출 조회</button>
-      </div>
-
-      {/* 내 제출 */}
-      {mySubmission && (
-        <div className="my-submission">
-          <h3>내 제출</h3>
-          <p>과제 ID: {mySubmission.assignment.assignmentId}</p>
-          <p>
-            링크:{" "}
-            <a href={mySubmission.link} target="_blank" rel="noreferrer">
-              {mySubmission.link}
-            </a>
-          </p>
-          <p>점수: {mySubmission.score ?? "-"}</p>
-          <p>상태: {mySubmission.status}</p>
+        <PersonFields value={person} onChange={setPerson} members={members} idPrefix={`assignment-${a.assignmentId}`} />
+        <div className="row">
+          <label className="field grow">
+            <span>제출 링크 (GitHub 등)</span>
+            <input
+              className="input"
+              type="url"
+              placeholder="https://github.com/..."
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+            />
+          </label>
+          <label className="field grow">
+            <span>파일 첨부 (최대 {MAX_FILE_MB}MB)</span>
+            <input key={fileKey} className="input" type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          </label>
         </div>
-      )}
-
-      {/* ✅ 과제 등록 (맨 아래로 이동) */}
-      <div className="assignment-create">
-        <h3>과제 등록 (관리자)</h3>
-        <input
-          type="text"
-          placeholder="제목"
-          value={newAssignment.title}
-          onChange={(e) =>
-            setNewAssignment({ ...newAssignment, title: e.target.value })
-          }
-        />
-        <input
-          type="text"
-          placeholder="설명"
-          value={newAssignment.description}
-          onChange={(e) =>
-            setNewAssignment({ ...newAssignment, description: e.target.value })
-          }
-        />
-        <select
-          value={newAssignment.type}
-          onChange={(e) =>
-            setNewAssignment({ ...newAssignment, type: e.target.value })
-          }
-        >
-          <option value="STUDY">스터디</option>
-          <option value="PROGRAMMING">프로그래밍</option>
-          <option value="PROJECT">프로젝트</option>
-        </select>
-        <input
-          type="date"
-          value={newAssignment.dueDate}
-          onChange={(e) =>
-            setNewAssignment({ ...newAssignment, dueDate: e.target.value })
-          }
-        />
-        <button onClick={createAssignment}>등록</button>
-      </div>
-    </div>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <span className="small muted">링크와 파일 중 하나 이상. 다시 제출하면 이전 제출을 덮어써요.</span>
+          <button className="btn btn-brand" type="submit" disabled={sending}>
+            {sending ? "제출 중..." : "제출"}
+          </button>
+        </div>
+        {error && <div className="notice notice-error">{error}</div>}
+      </form>
+    </article>
   );
 }
 

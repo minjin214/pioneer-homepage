@@ -1,241 +1,196 @@
-import React, { useEffect, useState } from "react";
-import Calendar from "react-calendar";   // 달력 라이브러리
-import "react-calendar/dist/Calendar.css";
-import "./AttendancePage.css";
-import { useNavigate } from 'react-router-dom';
-import API from "../api";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Calendar from "react-calendar";
+import API, { errorMessage } from "../api";
+import PersonFields, { loadPerson, savePerson, useMembers } from "../components/PersonFields";
+import { formatDate, parseYmd, toYmd } from "../utils/date";
+
+function StatusToggle({ value, onChange }) {
+  return (
+    <div className="segmented" role="group" aria-label="참석 여부">
+      <button type="button" className={value === "ATTEND" ? "on-attend" : ""} onClick={() => onChange("ATTEND")}>
+        참석
+      </button>
+      <button type="button" className={value === "ABSENT" ? "on-absent" : ""} onClick={() => onChange("ABSENT")}>
+        불참
+      </button>
+    </div>
+  );
+}
 
 function AttendancePage() {
-  const navigate = useNavigate();
-  const [attendances, setAttendances] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [filterUserId, setFilterUserId] = useState("");
-  const [filterDate, setFilterDate] = useState("");
-  const [editReason, setEditReason] = useState({});
-  const [calendarDate, setCalendarDate] = useState(new Date());
+  const members = useMembers();
+  const [selected, setSelected] = useState(toYmd(new Date()));
+  const [records, setRecords] = useState([]);
+  const [person, setPerson] = useState(loadPerson);
+  const [status, setStatus] = useState("ATTEND");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  // 출석 등록 입력 상태 추가
-  const [newAttendance, setNewAttendance] = useState({
-    userId: "",
-    date: "",
-    status: "ATTEND",
-    reason: ""
-  });
-
-  const fetchAll = async () => {
-    setLoading(true);
+  const load = useCallback(async () => {
     try {
       const res = await API.get("/api/attendances");
-      setAttendances(res.data.data);
+      setRecords(res.data.data || []);
     } catch (err) {
-      console.error(err);
+      setError(errorMessage(err, "출석 기록을 불러오지 못했어요."));
     }
-    setLoading(false);
-  };
-
-  const fetchByUser = async () => {
-    if (!filterUserId) return;
-    setLoading(true);
-    try {
-      const res = await API.get(`/api/attendances/user/${filterUserId}`);
-      setAttendances(res.data.data);
-    } catch (err) {
-      console.error(err);
-    }
-    setLoading(false);
-  };
-
-  const fetchByDate = async (date) => {
-    if (!date) return;
-    setLoading(true);
-    try {
-      const res = await API.get(`/api/attendances/date/${date}`);
-      setAttendances(res.data.data);
-    } catch (err) {
-      console.error(err);
-    }
-    setLoading(false);
-  };
-
-  const updateStatus = async (id, status) => {
-    try {
-      await API.patch(`/api/attendances/${id}`, { status });
-      fetchAll();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const saveReason = async (id) => {
-    try {
-      await API.post(`/api/attendances/${id}/reason`, {
-        reason: editReason[id],
-      });
-      setEditReason((prev) => ({ ...prev, [id]: "" }));
-      fetchAll();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // ✅ 달력 날짜 선택 시 실행
-  const onCalendarChange = (value) => {
-    setCalendarDate(value);
-    const isoDate = value.toISOString().split("T")[0]; // yyyy-MM-dd 변환
-    setFilterDate(isoDate);
-    fetchByDate(isoDate);
-  };
-
-  // ⭐ 출석 등록 API
-  const createAttendance = async () => {
-    if (!newAttendance.userId || !newAttendance.date) {
-      alert("유저 ID와 날짜는 필수입니다.");
-      return;
-    }
-    try {
-      await API.post("/api/attendances", newAttendance);
-      alert("출석 등록 성공");
-      setNewAttendance({ userId: "", date: "", status: "ATTEND", reason: "" }); // 입력창 초기화
-      fetchAll();
-    } catch (err) {
-      console.error(err);
-      alert("출석 등록 실패");
-    }
-  };
-
-  useEffect(() => {
-    fetchAll();
   }, []);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const datesWithRecords = useMemo(() => new Set(records.map((r) => r.date)), [records]);
+  const dayRecords = records.filter((r) => r.date === selected);
+  const attendCount = dayRecords.filter((r) => r.status === "ATTEND").length;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!person.studentNumber.trim() || !person.name.trim()) return setError("학번과 이름을 입력하세요.");
+    setSaving(true);
+    try {
+      await API.post("/api/attendances", {
+        studentNumber: person.studentNumber,
+        name: person.name,
+        date: selected,
+        status,
+        reason: status === "ABSENT" ? reason : null,
+      });
+      savePerson(person);
+      setReason("");
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, "출석을 저장하지 못했어요."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const patch = async (id, body) => {
+    try {
+      await API.patch(`/api/attendances/${id}`, body);
+      await load();
+    } catch (err) {
+      alert(errorMessage(err, "수정하지 못했어요."));
+    }
+  };
+
+  const remove = async (r) => {
+    if (!window.confirm(`${r.name}(${r.studentNumber})의 ${formatDate(r.date)} 기록을 삭제할까요?`)) return;
+    try {
+      await API.delete(`/api/attendances/${r.attendanceId}`);
+      await load();
+    } catch (err) {
+      alert(errorMessage(err, "삭제하지 못했어요."));
+    }
+  };
+
   return (
-    <div className="attendance-container">
-      <button className="back-btn" onClick={() => navigate('/main')}>⬅ 메인으로</button>
-
-      <h1 className="attendance-title">출석 관리</h1>
-
-
-      {/* 달력 */}
-      <div className="calendar-box">
-        <Calendar onChange={onCalendarChange} value={calendarDate} />
+    <>
+      <div className="page-head">
+        <div>
+          <h1>출석</h1>
+          <p>날짜를 고르고 학번과 이름으로 참석 여부를 남겨요.</p>
+        </div>
       </div>
 
-      {/*  출석 등록 Form */}
-      <div className="attendance-create">
-        <h3>출석 등록</h3>
-        <input
-          type="text"
-          placeholder="유저 ID"
-          value={newAttendance.userId}
-          onChange={(e) => setNewAttendance({ ...newAttendance, userId: e.target.value })}
-        />
-        <input
-          type="date"
-          value={newAttendance.date}
-          onChange={(e) => setNewAttendance({ ...newAttendance, date: e.target.value })}
-        />
-        <select
-          value={newAttendance.status}
-          onChange={(e) => setNewAttendance({ ...newAttendance, status: e.target.value })}
-        >
-          <option value="ATTEND">참석</option>
-          <option value="ABSENT">불참</option>
-          <option value="UNKNOWN">미정</option>
-        </select>
-        <input
-          type="text"
-          placeholder="사유"
-          value={newAttendance.reason}
-          onChange={(e) => setNewAttendance({ ...newAttendance, reason: e.target.value })}
-        />
-        <button onClick={createAttendance}>등록</button>
+      <div className="grid-2">
+        <section className="card">
+          <Calendar
+            value={parseYmd(selected)}
+            onChange={(d) => setSelected(toYmd(d))}
+            calendarType="gregory"
+            formatDay={(_, d) => d.getDate()}
+            tileContent={({ date, view }) =>
+              view === "month" && datesWithRecords.has(toYmd(date)) ? <span className="cal-dot" /> : null
+            }
+          />
+        </section>
+
+        <div>
+          <form className="card stack" onSubmit={submit}>
+            <div className="card-title" style={{ marginBottom: 0 }}>{formatDate(selected)} 출석 체크</div>
+            <PersonFields value={person} onChange={setPerson} members={members} idPrefix="attendance" />
+            <div className="row">
+              <StatusToggle value={status} onChange={setStatus} />
+              {status === "ABSENT" && (
+                <input
+                  className="input grow"
+                  placeholder="불참 사유 (선택)"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                />
+              )}
+            </div>
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <span className="small muted">같은 날 다시 등록하면 기존 기록이 바뀌어요.</span>
+              <button className="btn btn-primary" type="submit" disabled={saving}>
+                {saving ? "저장 중..." : "저장"}
+              </button>
+            </div>
+            {error && <div className="notice notice-error">{error}</div>}
+          </form>
+
+          <section className="card">
+            <div className="card-title">
+              참석 현황
+              <span className="row" style={{ gap: 6 }}>
+                <span className="badge badge-success">참석 {attendCount}</span>
+                <span className="badge badge-danger">불참 {dayRecords.length - attendCount}</span>
+              </span>
+            </div>
+            {dayRecords.length === 0 ? (
+              <div className="empty">이 날의 출석 기록이 없어요.</div>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th>학번</th>
+                      <th>참석 여부</th>
+                      <th>불참 사유</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dayRecords.map((r) => (
+                      <tr key={r.attendanceId}>
+                        <td style={{ fontWeight: 600 }}>{r.name}</td>
+                        <td className="muted">{r.studentNumber}</td>
+                        <td>
+                          <StatusToggle value={r.status} onChange={(s) => s !== r.status && patch(r.attendanceId, { status: s })} />
+                        </td>
+                        <td>
+                          {r.status === "ABSENT" ? (
+                            <input
+                              key={`${r.attendanceId}-${r.reason ?? ""}`}
+                              className="input"
+                              style={{ minWidth: 120 }}
+                              defaultValue={r.reason ?? ""}
+                              placeholder="사유"
+                              onBlur={(e) =>
+                                e.target.value !== (r.reason ?? "") && patch(r.attendanceId, { reason: e.target.value })
+                              }
+                            />
+                          ) : (
+                            <span className="muted">-</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <button className="btn btn-danger-text btn-sm" onClick={() => remove(r)}>삭제</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
-
-      {/* 검색 필터 */}
-      <div className="attendance-filters">
-        <input
-          type="text"
-          placeholder="유저 ID 검색"
-          value={filterUserId}
-          onChange={(e) => setFilterUserId(e.target.value)}
-        />
-        <button onClick={fetchByUser}>유저 검색</button>
-
-        <input
-          type="date"
-          value={filterDate}
-          onChange={(e) => setFilterDate(e.target.value)}
-        />
-        <button onClick={() => fetchByDate(filterDate)}>날짜 검색</button>
-
-        <button onClick={fetchAll}>전체 조회</button>
-      </div>
-
-      {/* 테이블 */}
-      {loading ? (
-        <p>불러오는 중...</p>
-      ) : (
-        <table className="attendance-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>이름</th>
-              <th>날짜</th>
-              <th>상태</th>
-              <th>불참 사유</th>
-              <th>수정</th>
-            </tr>
-          </thead>
-          <tbody>
-            {attendances.map((a) => (
-              <tr key={a.attendanceId}>
-                <td>{a.userId}</td>
-                <td>{a.userName}</td>
-                <td>{a.date}</td>
-                <td>
-                  <select
-                    value={a.status}
-                    onChange={(e) =>
-                      updateStatus(
-                        a.attendanceId,
-                        e.target.value === "참석"
-                          ? "ATTEND"
-                          : e.target.value === "불참"
-                            ? "ABSENT"
-                            : "UNKNOWN"
-                      )
-                    }
-                  >
-                    <option>참석</option>
-                    <option>불참</option>
-                    <option>미정</option>
-                  </select>
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    value={editReason[a.attendanceId] ?? a.reason ?? ""}
-                    onChange={(e) =>
-                      setEditReason((prev) => ({
-                        ...prev,
-                        [a.attendanceId]: e.target.value,
-                      }))
-                    }
-                  />
-                </td>
-                <td>
-                  <button
-                    className="save-btn"
-                    onClick={() => saveReason(a.attendanceId)}
-                  >
-                    저장
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+    </>
   );
 }
 
