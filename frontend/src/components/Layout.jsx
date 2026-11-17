@@ -2,6 +2,7 @@ import React from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import API from "../api";
 import logo from "../assets/pioneer-intro.png";
+import { useDialog } from "./Dialog";
 
 const LINKS = [
   { to: "/", label: "홈", end: true },
@@ -13,9 +14,10 @@ const LINKS = [
 
 function Layout() {
   const navigate = useNavigate();
+  const { confirm } = useDialog();
 
   const leave = async () => {
-    if (!window.confirm("나가면 다시 입장 비밀번호를 입력해야 해요. 나갈까요?")) return;
+    if (!(await confirm("나가면 다시 입장 비밀번호를 입력해야 해요. 나갈까요?", { confirmLabel: "나가기" }))) return;
     try {
       await API.post("/api/access/leave");
     } finally {

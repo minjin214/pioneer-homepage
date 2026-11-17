@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import API, { errorMessage, fileUrl } from "../api";
+import { useDialog } from "../components/Dialog";
 import PersonFields, { loadPerson, savePerson, useMembers } from "../components/PersonFields";
 import { dday, formatDate, formatDateTime } from "../utils/date";
 import "./AssignmentPage.css";
@@ -125,6 +126,7 @@ function AssignmentPage() {
 }
 
 function AssignmentCard({ assignment: a, members, onChanged }) {
+  const { confirm, notify } = useDialog();
   const [person, setPerson] = useState(loadPerson);
   const [link, setLink] = useState("");
   const [file, setFile] = useState(null);
@@ -163,23 +165,24 @@ function AssignmentCard({ assignment: a, members, onChanged }) {
   };
 
   const cancelSubmission = async (s) => {
-    if (!window.confirm(`${s.name}(${s.studentNumber})의 제출을 취소할까요?`)) return;
+    const msg = `${s.name}(${s.studentNumber})의 제출을 취소할까요?\n첨부 파일도 함께 삭제돼요.`;
+    if (!(await confirm(msg, { confirmLabel: "제출 취소", danger: true }))) return;
     try {
       await API.delete(`/api/submissions/${s.submissionId}`);
       await onChanged();
     } catch (err) {
-      alert(errorMessage(err, "취소하지 못했어요."));
+      await notify(errorMessage(err, "취소하지 못했어요."));
     }
   };
 
   const removeAssignment = async () => {
     const msg = `'${a.title}' 과제를 삭제할까요?\n제출된 ${a.submissions.length}건과 첨부 파일도 함께 삭제돼요.`;
-    if (!window.confirm(msg)) return;
+    if (!(await confirm(msg, { confirmLabel: "삭제", danger: true }))) return;
     try {
       await API.delete(`/api/assignments/${a.assignmentId}`);
       await onChanged();
     } catch (err) {
-      alert(errorMessage(err, "삭제하지 못했어요."));
+      await notify(errorMessage(err, "삭제하지 못했어요."));
     }
   };
 

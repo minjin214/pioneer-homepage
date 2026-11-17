@@ -635,3 +635,13 @@ textarea {
 .cal-dot.important {
   background: var(--danger);
 }
+
+/* 삭제 같은 위험한 동작의 확인 버튼 */
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #b53535;
+}

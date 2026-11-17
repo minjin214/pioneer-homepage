@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Calendar from "react-calendar";
 import API, { errorMessage } from "../api";
+import { useDialog } from "../components/Dialog";
 import PersonFields, { loadPerson, savePerson, useMembers } from "../components/PersonFields";
 import { formatDate, parseYmd, toYmd } from "../utils/date";
 
@@ -18,6 +19,7 @@ function StatusToggle({ value, onChange }) {
 }
 
 function AttendancePage() {
+  const { confirm, notify } = useDialog();
   const members = useMembers();
   const [selected, setSelected] = useState(toYmd(new Date()));
   const [records, setRecords] = useState([]);
@@ -72,17 +74,18 @@ function AttendancePage() {
       await API.patch(`/api/attendances/${id}`, body);
       await load();
     } catch (err) {
-      alert(errorMessage(err, "수정하지 못했어요."));
+      await notify(errorMessage(err, "수정하지 못했어요."));
     }
   };
 
   const remove = async (r) => {
-    if (!window.confirm(`${r.name}(${r.studentNumber})의 ${formatDate(r.date)} 기록을 삭제할까요?`)) return;
+    const msg = `${r.name}(${r.studentNumber})의 ${formatDate(r.date)} 출석 기록을 삭제할까요?`;
+    if (!(await confirm(msg, { confirmLabel: "삭제", danger: true }))) return;
     try {
       await API.delete(`/api/attendances/${r.attendanceId}`);
       await load();
     } catch (err) {
-      alert(errorMessage(err, "삭제하지 못했어요."));
+      await notify(errorMessage(err, "삭제하지 못했어요."));
     }
   };
 

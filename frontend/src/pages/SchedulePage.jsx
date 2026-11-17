@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Calendar from "react-calendar";
 import API, { errorMessage } from "../api";
+import { useDialog } from "../components/Dialog";
 import { formatDate, parseYmd, toYmd } from "../utils/date";
 
 const EMPTY_FORM = { title: "", location: "", locationUrl: "", description: "", important: false };
 const isHttpUrl = (v) => /^https?:\/\/.+/i.test(v);
 
 function SchedulePage() {
+  const { confirm, notify } = useDialog();
   const [selected, setSelected] = useState(toYmd(new Date()));
   const [schedules, setSchedules] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -62,12 +64,12 @@ function SchedulePage() {
   };
 
   const remove = async (s) => {
-    if (!window.confirm(`'${s.title}' 일정을 삭제할까요?`)) return;
+    if (!(await confirm(`'${s.title}' 일정을 삭제할까요?`, { confirmLabel: "삭제", danger: true }))) return;
     try {
       await API.delete(`/api/schedules/${s.scheduleId}`);
       await load();
     } catch (err) {
-      alert(errorMessage(err, "삭제하지 못했어요."));
+      await notify(errorMessage(err, "삭제하지 못했어요."));
     }
   };
 
